@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+// import database
+const sqlite3 = require('sqlite3');
 
 // import enchryption modules
 const _ = require('lodash');
@@ -45,7 +47,7 @@ app.post('/register', upload.single('avatar'), (req, res) => {
                 company_name,
                 password) 
                 VALUES (
-                    '${red.body.name}', 
+                    '${req.body.name}', 
                     '${req.body.email}', 
                     '${req.body.company_name}', 
                     '${hash}'
@@ -64,6 +66,10 @@ app.post('/register', upload.single('avatar'), (req, res) => {
         
         db.close();
     });
+    // return res.json({
+    //     "status": true,
+    //     "message": "User created"
+    //  });
 });
 // POST /login - login a user
 app.post('/login', (req, res) => {
@@ -107,6 +113,61 @@ app.post('/login', (req, res) => {
 
     db.close();
 });
+
+// Post /invoice - add a new purchase to the database with fields: name, user_id, and price
+app.post('/invoice', (req, res) => {
+    // check data is not empty
+    if (!req.body.name || !req.body.user_id || !req.body.price) {
+        // return json with status and message
+        response = res.json({"status": false, "message": "Please fill in all fields"});
+        return response;
+    }
+
+    // add purchase to database
+    let db = new sqlite3.Database('./database/InvApp.db');
+
+    let sqlCommand = `INSERT INTO invoices(
+                            name,
+                            user_id,
+                            price
+                        )
+                        VALUES (
+                            '${req.body.name}',
+                            '${req.body.user_id}',
+                            '${req.body.price}
+                        )`;
+    db.serialize(() => {
+        db.run(sqlCommand, (err) => {
+            if (err) {
+                throw err;
+            }
+        
+            let invoice_id = this.lastID;
+
+            for (let i=0; i< req.body.items.length; i++) {
+                let sqlItemCommamnd = `INSERT INTO transactions(
+                                            name,
+                                            price,
+                                            invoice_id
+                                        ) VALUES (
+                                            '${req.body.items[i].name}',
+                                            '${req.body.items[i].price}',
+                                            '${invoice_id}'
+                                        )`;
+                db.run(sqlItemCommamnd, (err) => {
+                    if (err) {
+                        throw err;
+                    } else {
+                        console.log('Item added');
+                    }
+                });
+            }
+
+            response = res.json({"status": true, "message": "Invoice added"});
+            return response;
+        });
+
+    });
 
 
 // listen to port
